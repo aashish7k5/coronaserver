@@ -10,7 +10,6 @@ const {MongoClient} = require('mongodb');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-
 const port = process.env.PORT || "8000";
 const uri = process.env.URILINK
 
@@ -35,8 +34,7 @@ app.get("/data", async function(req, res) {
       let result = await client.db().collection("data").findOne({timestamp: localdatestr})
       if(result) {
         console.log("Latest satsifies!")
-        res.status(200).send(await client.db().collection("data").find({}).toArray())
-        return;
+        return res.status(200).send(await client.db().collection("data").find({}).toArray())
       }
       else console.log("Not found. Adding latest data.")
 
@@ -49,20 +47,13 @@ app.get("/data", async function(req, res) {
     const $ = cheerio.load(result.data)
     const frViewText = $('.fr-view').text();
 
-    const dateLocatorString = "Confirmed COVID-19 Cases:"
-    const sampleDate = "May 12, 2020, 8:00 a.m. "
-    const index = frViewText.indexOf(dateLocatorString)
-    let datestring = frViewText.substring(index - sampleDate.length, index)
-    let date = new Date(datestring.split(",").slice(0, 2).join())
-    date.setHours(date.getHours()-4)
-
     //Check if data on the page is fresh. 
+    const date = extractDataDate(frViewText)
     let notfresh = await client.db().collection("data").findOne({timestamp: date.toISOString()})
     if(notfresh)
     {
       console.log("Not fresh. Returning old data.")
-      res.status(200).send(await client.db().collection("data").find({}).toArray())
-      return;
+      return res.status(200).send(await client.db().collection("data").find({}).toArray());
     }
 
     //If the data is fresh, then craft the response and submit it.
@@ -75,7 +66,6 @@ app.get("/data", async function(req, res) {
     
     try{
       await client.db().collection("data").insertOne(response);
-      console.log("Added today's data.")
     }
     catch(e) {
       console.log(e)
@@ -83,6 +73,15 @@ app.get("/data", async function(req, res) {
 
     res.status(200).send(await client.db().collection("data").find({}).toArray());
 });
+
+function extractDataDate(frViewText)
+{
+  const index = frViewText.indexOf("Confirmed COVID-19 Cases:")
+  let datestring = frViewText.substring(index - "May 12, 2020, 8:00 a.m. ".length, index)
+  let date = new Date(datestring.split(",").slice(0, 2).join())
+  date.setHours(date.getHours()-4)
+  return date
+}
 
 function extractNumber(frViewText, locationString)
 {
