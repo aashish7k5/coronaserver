@@ -64,6 +64,7 @@ app.get("/data", async function(req, res) {
       timestamp:date.toISOString()
     }
     
+    console.log("Adding new data")
     try{
       await client.db().collection("data").insertOne(response);
     }
