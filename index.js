@@ -58,7 +58,7 @@ app.get("/data", async function(req, res) {
       res.status(200).send(await client.db().collection("data").find({}).toArray());
       return;
     }
-
+    date.setHours(date.getHours()-4)
     //If the data is fresh, then craft the response and submit it.
     const response = {
       amherst:Number(extractNumber(frViewText, "Amherst Total Cases:")), 
@@ -84,7 +84,6 @@ function extractDataDate(frViewText)
   let sampledatestring = "May 12, 2020, 8:00 a.m. "
   let datestring = frViewText.substring(index - sampledatestring.length, index)
   let date = new Date(datestring.split(",").slice(0, 2).join())
-  date.setHours(date.getHours()-4)
   return date
 }
 
