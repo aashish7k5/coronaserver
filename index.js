@@ -53,7 +53,8 @@ app.get("/data", async function(req, res) {
     if(notfresh)
     {
       console.log("Not fresh. Returning old data.")
-      return res.status(200).send(await client.db().collection("data").find({}).toArray());
+      res.status(200).send(await client.db().collection("data").find({}).toArray());
+      return;
     }
 
     //If the data is fresh, then craft the response and submit it.
