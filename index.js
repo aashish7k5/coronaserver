@@ -50,6 +50,7 @@ app.get("/data", async function(req, res) {
 
     //Check if data on the page is fresh. 
     const date = extractDataDate(frViewText)
+    date.setUTCHours(date.getUTCHours()-4)
     console.log("Page's date being checked for freshness = ", date)
     let notfresh = await client.db().collection("data").findOne({timestamp: date.toISOString()})
     if(notfresh)
@@ -58,7 +59,6 @@ app.get("/data", async function(req, res) {
       res.status(200).send(await client.db().collection("data").find({}).toArray());
       return;
     }
-    date.setHours(date.getHours()-4)
     //If the data is fresh, then craft the response and submit it.
     const response = {
       amherst:Number(extractNumber(frViewText, "Amherst Total Cases:")), 
