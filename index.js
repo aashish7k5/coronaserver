@@ -81,7 +81,8 @@ app.get("/data", async function(req, res) {
 function extractDataDate(frViewText)
 {
   const index = frViewText.indexOf("Confirmed COVID-19 Cases:")
-  let datestring = frViewText.substring(index - "May 12, 2020, 8:00 a.m. ".length, index)
+  let sampledatestring = "May 12, 2020, 8:00 a.m. "
+  let datestring = frViewText.substring(index - sampledatestring.length, index)
   let date = new Date(datestring.split(",").slice(0, 2).join())
   date.setHours(date.getHours()-4)
   return date
