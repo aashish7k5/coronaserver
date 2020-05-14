@@ -34,9 +34,10 @@ app.get("/data", async function(req, res) {
       let result = await client.db().collection("data").findOne({timestamp: localdatestr})
       if(result) {
         console.log("Latest satsifies!")
-        return res.status(200).send(await client.db().collection("data").find({}).toArray())
+        res.status(200).send(await client.db().collection("data").find({}).toArray())
+        return;
       }
-      else console.log("Not found. Adding latest data.")
+      else console.log("Not found in database.")
 
     } catch(e) {
       console.log(e)
@@ -49,6 +50,7 @@ app.get("/data", async function(req, res) {
 
     //Check if data on the page is fresh. 
     const date = extractDataDate(frViewText)
+    console.log("Page's date being checked for freshness = ", date)
     let notfresh = await client.db().collection("data").findOne({timestamp: date.toISOString()})
     if(notfresh)
     {
