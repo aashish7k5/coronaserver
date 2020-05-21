@@ -22,61 +22,77 @@ app.get("/", (req, res) => {
 app.get("/data", async function(req, res) {
 
     const client = new MongoClient(uri)
-
     let todaydate = new Date()
-    todaydate.setHours(todaydate.getHours()-4);
-    let localdatestr = new Date(todaydate.toISOString().split("T")[0]).toISOString()
 
-    try{
-      await client.connect();
+    await client.connect();
+
+    let lastCheck = new Date((await client.db().collection("freshness").find({}).toArray())[0]["lastCheck"]);
+    console.log("Data last checked at ", lastCheck);
+
+    if(Math.abs(todaydate.getUTCHours() - lastCheck.getUTCHours())>0)
+    {
+      await client.db().collection("freshness").updateOne({}, {$set: {lastCheck: todaydate.toISOString()}});
       
       //Check if today's date has already been looked up by scraping.
-      let result = await client.db().collection("data").findOne({timestamp: localdatestr})
-      if(result) {
-        console.log("Latest satsifies!")
+      let dataForToday = await client.db().collection("data").findOne({timestamp: todaydate.toISOString().split("T")[0]})
+      if(dataForToday) {
+        console.log("There's data for today!")
         res.status(200).send(await client.db().collection("data").find({}).toArray())
         return;
       }
       else console.log("Not found in database.")
 
-    } catch(e) {
-      console.log(e)
-    }
+      //If not, then scrape the page. 
+      const frViewText = await scrapePage();
 
-    //If not, then scrape the page. 
-    const result = await axios.default.get("https://www.amherstma.gov/3519/Coronavirus")
-    const $ = cheerio.load(result.data)
-    const frViewText = $('.fr-view').text();
+      //Check if data on the page is fresh. 
+      const scrapedDate = extractDataDate(frViewText)
+      console.log("Page's date being checked for freshness =", scrapedDate)
+      let notfresh = await client.db().collection("data").findOne({timestamp: scrapedDate})
+      if(notfresh)
+      {
+        console.log("Not fresh. Returning old data.")
+        res.status(200).send(await returnAllData(client));
+        return;
+      }
 
-    //Check if data on the page is fresh. 
-    const date = extractDataDate(frViewText)
-    date.setUTCHours(date.getUTCHours()-4)
-    console.log("Page's date being checked for freshness = ", date)
-    let notfresh = await client.db().collection("data").findOne({timestamp: date.toISOString()})
-    if(notfresh)
-    {
-      console.log("Not fresh. Returning old data.")
-      res.status(200).send(await client.db().collection("data").find({}).toArray());
-      return;
+      //If the data is fresh, then craft the response and submit it.
+      await addData(frViewText, scrapedDate, client);
     }
-    //If the data is fresh, then craft the response and submit it.
-    const response = {
-      amherst:Number(extractNumber(frViewText, "Amherst Total Cases:")), 
-      hampshire:Number(extractNumber(frViewText, "Hampshire County Cases")), 
-      mass:Number(extractNumber(frViewText, "Massachusetts:")), 
-      timestamp:date.toISOString()
-    }
-    
-    console.log("Adding new data")
-    try{
-      await client.db().collection("data").insertOne(response);
-    }
-    catch(e) {
-      console.log(e)
-    }
+    else 
+      console.log("Data last checked too recently, will check within the hour again.");
 
-    res.status(200).send(await client.db().collection("data").find({}).toArray());
+    res.status(200).send(await returnAllData(client));
 });
+
+async function addData(frViewText, date, client) {
+  const response = {
+    amherst: Number(extractNumber(frViewText, "Amherst Total Cases:")),
+    hampshire: Number(extractNumber(frViewText, "Hampshire County Cases")),
+    mass: Number(extractNumber(frViewText, "Massachusetts:")),
+    timestamp: date.toISOString()
+  };
+  console.log("Adding new data");
+  try {
+    await client.db().collection("data").insertOne(response);
+  }
+  catch (e) {
+    console.log(e);
+  }
+}
+
+async function returnAllData(client)
+{
+  return await client.db().collection("data").find({}).toArray()
+}
+
+async function scrapePage()
+{
+  const result = await axios.default.get("https://www.amherstma.gov/3519/Coronavirus")
+  const $ = cheerio.load(result.data)
+  const frViewText = $('.fr-view').text();
+  return frViewText;
+}
 
 function extractDataDate(frViewText)
 {
@@ -84,7 +100,7 @@ function extractDataDate(frViewText)
   let sampledatestring = "May 12, 2020, 8:00 a.m. "
   let datestring = frViewText.substring(index - sampledatestring.length, index)
   let date = new Date(datestring.split(",").slice(0, 2).join())
-  return date
+  return date.toISOString().split("T")[0];
 }
 
 function extractNumber(frViewText, locationString)
